@@ -9,26 +9,7 @@ import (
 	"time"
 )
 
-type SunTimes struct {
-	Date       string `json:"date"`
-	Sunrise    string `json:"sunrise"`
-	Sunset     string `json:"sunset"`
-	FirstLight string `json:"first_light"`
-	LastLight  string `json:"last_light"`
-	Dawn       string `json:"dawn"`
-	Dusk       string `json:"dusk"`
-	SolarNoon  string `json:"solar_noon"`
-	GoldenHour string `json:"golden_hour"`
-	Timezone   string `json:"timezone"`
-	UTCOffset  int    `json:"utc_offset"` // Offset in minutes
-}
-
-type Response struct {
-	Results SunTimes `json:"results"`
-	Status  string   `json:"status"`
-}
-
-func MakeRequest(url string) (map[string]interface{}, error) {
+func MakeRequest(url string) (map[string]any, error) {
 	httpClient := http.Client{}
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -51,7 +32,7 @@ func MakeRequest(url string) (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	var responseJson map[string]interface{}
+	var responseJson map[string]any
 
 	json.Unmarshal([]byte(string(body)), &responseJson)
 
@@ -86,9 +67,9 @@ func main() {
 		return
 	}
 
-	var latitude = iana_response["lat"].(string)
-	var longitude = iana_response["lon"].(string)
-	var url = fmt.Sprintf("https://api.sunrisesunset.io/json?lat=%s&lng=%s", latitude, longitude)
+	latitude := iana_response["lat"].(float64)
+	longitude := iana_response["lon"].(float64)
+	url := fmt.Sprintf("https://api.sunrisesunset.io/json?lat=%f&lng=%f", latitude, longitude)
 
 	sunrise_sunset_response, sunrise_sunset_err := MakeRequest(url)
 
@@ -97,7 +78,26 @@ func main() {
 		return
 	}
 
-	var sunrise = sunrise_sunset_response["results"].(map[string]interface{})["sunrise"].(string)
-	var sunset = sunrise_sunset_response["results"].(map[string]interface{})["sunrise"].(string)
+	result := sunrise_sunset_response["results"].(map[string]interface{})
+	date := result["date"].(string)
+	timezone := result["timezone"].(string)
+	sunrise := result["sunrise"].(string)
+	sunset := result["sunset"].(string)
+
+	sunrise_time_obj, sunrise_err := parseTime(date, sunrise, timezone)
+
+	if sunrise_err != nil {
+		log.Fatalf("Error parsing sunrise time string: %v", sunrise_err)
+		return
+	}
+
+	sunset_time_obj, sunset_err := parseTime(date, sunset, timezone)
+
+	if sunset_err != nil {
+		log.Fatalf("Error parsing sunset time string: %v", sunset_err)
+		return
+	}
+
+	println(fmt.Sprintf("Current: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time_obj.String(), sunset_time_obj.String()))
 
 }
