@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -58,6 +59,15 @@ func parseTime(date, timeStr, location string) (time.Time, error) {
 }
 
 func main() {
+
+	_, error := os.Stat("/tmp/sleepyboi.lock")
+
+	if error == nil {
+		log.Print("Sleepyboi has already been run -- skipping")
+		return
+	}
+
+	// Check if .lock file exists in
 	iana_response, iana_err := MakeRequest("http://ip-api.com/json/")
 
 	curr_time := time.Now()
@@ -78,7 +88,7 @@ func main() {
 		return
 	}
 
-	result := sunrise_sunset_response["results"].(map[string]interface{})
+	result := sunrise_sunset_response["results"].(map[string]any)
 	date := result["date"].(string)
 	timezone := result["timezone"].(string)
 	sunrise := result["sunrise"].(string)
@@ -99,5 +109,9 @@ func main() {
 	}
 
 	println(fmt.Sprintf("Current: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time_obj.String(), sunset_time_obj.String()))
+
+	msg := []byte("Hello, world!")
+
+	os.WriteFile("/tmp/sleepyboi.lock", msg, 0400)
 
 }
