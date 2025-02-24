@@ -12,4 +12,4 @@ if [ "$curr_gtk_theme" != "Pop-dark" ]; then
     gsettings set org.gnome.desktop.interface gtk-theme 'Pop-dark'
 fi
 
-rm /tmp/sleepyboi.lock 2>/dev/null
+rm /var/lock/sleepyboi.lock 2>/dev/null

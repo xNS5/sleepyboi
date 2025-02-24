@@ -83,14 +83,14 @@ func execAt(script_name string, time time.Time) {
 
 func main() {
 
-	_, error := os.Stat("/tmp/sleepyboi.lock")
+	_, error := os.Stat("/var/lock/sleepyboi.lock")
 
+	// Check if .lock file exists in /var/lock
 	if error == nil {
 		log.Print("Sleepyboi has already been run -- skipping")
 		return
 	}
 
-	// Check if .lock file exists in
 	iana_response, iana_err := MakeRequest("http://ip-api.com/json/")
 
 	curr_time := time.Now()
@@ -131,16 +131,16 @@ func main() {
 		return
 	}
 
-	if curr_time.After(sunset_time) || curr_time.Before(sunrise_time) {
-		execAt("sunrise.sh", sunrise_time)
+	if curr_time.After(sunrise_time) || curr_time.Before(sunset_time) {
+		execAt("sunset.sh", sunset_time)
 
 	} else if curr_time.Before(sunrise_time) {
-		execAt("sunset.sh", sunset_time)
+		execAt("sunrise.sh", sunrise_time)
 	}
 
 	println(fmt.Sprintf("Current: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time.String(), sunset_time.String()))
 
 	msg := []byte("Hello, world!")
 
-	os.WriteFile("/tmp/sleepyboi.lock", msg, 0400)
+	os.WriteFile("/var/lock/sleepyboi.lock", msg, 0400)
 }
