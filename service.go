@@ -108,11 +108,9 @@ func main() {
 		return
 	}
 
-	// If current time is after sunrise and before sunset -> sunset
-	// If current time is after sunset -> sunset
-	// if current time is before sunrise and after sunset -> sunrise
-
-
+	// If current time is after sunset -> sunrise
+	// If current time is before sunrise -> sunrise
+	// If current time is before sunset -> sunset
 
 	println(fmt.Sprintf("Current: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time.String(), sunset_time.String()))
 
