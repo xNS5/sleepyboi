@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"time"
 )
 
@@ -56,6 +58,27 @@ func parseTime(date, timeStr, location string) (time.Time, error) {
 	}
 
 	return t, nil
+}
+
+func execAt(script_name string, time time.Time) {
+
+	script_path, script_err := filepath.Abs(script_name)
+
+	if script_err != nil {
+		log.Fatalf("Error loading script: %v", script_err)
+	}
+
+	formatted_time := time.Format("15:04")
+	command := fmt.Sprintf("echo '%s' | at %s", script_path, formatted_time)
+
+	exec_cmd := exec.Command("bash", "-c", command)
+	err := exec_cmd.Run()
+
+	if err != nil {
+		log.Fatalf("Error running script: %v\r\n", err)
+	} else {
+		log.Printf("Set %s success\r\n", script_name)
+	}
 }
 
 func main() {
@@ -108,9 +131,12 @@ func main() {
 		return
 	}
 
-	// If current time is after sunset -> sunrise
-	// If current time is before sunrise -> sunrise
-	// If current time is before sunset -> sunset
+	if curr_time.After(sunset_time) || curr_time.Before(sunrise_time) {
+		execAt("sunrise.sh", sunrise_time)
+
+	} else if curr_time.Before(sunrise_time) {
+		execAt("sunset.sh", sunset_time)
+	}
 
 	println(fmt.Sprintf("Current: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time.String(), sunset_time.String()))
 
