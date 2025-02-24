@@ -30,10 +30,10 @@ if [ ! -f "$SERVICE_FILE" ]; then
   echo "Service file $SERVICE_FILE not found in the current directory."
   echo "Creating $SERVICE_FILE from template..."
   cp $SERVICE_TEMPLATE $SERVICE_FILE
-  sed -i "s|ExecStart=|ExecStart=$GOBIN/geoboi|" $SERVICE_FILE
+  sed -i "s|ExecStart=|ExecStart=$GOBIN/sleepyboi|" $SERVICE_FILE
 fi
 
-echo "Building Geoboi..."
+echo "Building Sleepyboi..."
 
 $GO build -o "$GOBIN/"
 
@@ -42,7 +42,7 @@ if [ $? != 0 ]; then
   exit 1
 fi
 
-echo "Geoboi built successfully."
+echo "Sleepyboi built successfully."
 
 symlink_service
 

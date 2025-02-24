@@ -94,24 +94,29 @@ func main() {
 	sunrise := result["sunrise"].(string)
 	sunset := result["sunset"].(string)
 
-	sunrise_time_obj, sunrise_err := parseTime(date, sunrise, timezone)
+	sunrise_time, sunrise_err := parseTime(date, sunrise, timezone)
 
 	if sunrise_err != nil {
 		log.Fatalf("Error parsing sunrise time string: %v", sunrise_err)
 		return
 	}
 
-	sunset_time_obj, sunset_err := parseTime(date, sunset, timezone)
+	sunset_time, sunset_err := parseTime(date, sunset, timezone)
 
 	if sunset_err != nil {
 		log.Fatalf("Error parsing sunset time string: %v", sunset_err)
 		return
 	}
 
-	println(fmt.Sprintf("Current: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time_obj.String(), sunset_time_obj.String()))
+	// If current time is after sunrise and before sunset -> sunset
+	// If current time is after sunset -> sunset
+	// if current time is before sunrise and after sunset -> sunrise
+
+
+
+	println(fmt.Sprintf("Current: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time.String(), sunset_time.String()))
 
 	msg := []byte("Hello, world!")
 
 	os.WriteFile("/tmp/sleepyboi.lock", msg, 0400)
-
 }
