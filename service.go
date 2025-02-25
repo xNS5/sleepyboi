@@ -71,31 +71,30 @@ func execAt(script_name string, time time.Time) {
 	formatted_time := time.Format("15:04")
 	command := fmt.Sprintf("echo '%s' | at %s", script_path, formatted_time)
 
-	exec_cmd := exec.Command("bash", command)
-	err := exec_cmd.Run()
+	exec_cmd := exec.Command("bash", "-c", command)
+	error := exec_cmd.Run()
 
-	if err != nil {
-		log.Fatalf("Error running script: %v\r\n", err)
+	if error != nil {
+		log.Fatalf("Error running %s: %v\r\n", script_name, error)
 	} else {
-		log.Printf("Set %s success\r\n", script_name)
+		log.Printf("Running %s success\r\n", script_name)
 	}
 }
 
 func execNow(script_name string) {
-
 	script_path, script_err := filepath.Abs(script_name)
 
 	if script_err != nil {
-		log.Fatalf("Error loading script: %v", script_err)
+		log.Fatalf("Error loading script: %v\r\n", script_err)
 	}
 
-	exec_cmd := exec.Command("bash", script_path)
-	err := exec_cmd.Run()
+	command := exec.Command("bash", string(script_path))
+	error := command.Run()
 
-	if err != nil {
-		log.Fatalf("Error running script: %v\r\n", err)
+	if error != nil {
+		log.Fatalf("Error running %s: %v\r\n", script_name, error)
 	} else {
-		log.Printf("Set %s success\r\n", script_name)
+		log.Printf("Running %s success\r\n", script_name)
 	}
 }
 
@@ -144,6 +143,8 @@ func main() {
 
 	sunset_time, sunset_err := parseTime(date, sunset, timezone)
 
+	_ = sunset_time
+
 	if sunset_err != nil {
 		log.Fatalf("Error parsing sunset time string: %v", sunset_err)
 		return
@@ -151,13 +152,10 @@ func main() {
 
 	if curr_time.Before(sunrise_time) {
 		execNow("sunset.sh")
-		execAt("sunrise.sh", sunset_time)
+		execAt("sunrise.sh", sunrise_time)
 	} else if curr_time.After(sunrise_time) && curr_time.Before(sunset_time) {
 		execNow("sunrise.sh")
 		execAt("sunset.sh", sunset_time)
-	} else if curr_time.Before(sunrise_time) && curr_time.Before(sunset_time) { // Case after sunset time, API moves to next day sunrise + sunset. Ergo, before sunrise and sunset.
-		execNow("sunset.sh")
-		execAt("sunrise.sh", sunrise_time)
 	}
 
 	println(fmt.Sprintf("Current: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time.String(), sunset_time.String()))

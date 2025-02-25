@@ -12,3 +12,4 @@ if [ "$curr_gtk_theme" != "Pop" ]; then
 fi
 
 rm /var/lock/sleepyboi.lock 2>/dev/null
+exit 0
