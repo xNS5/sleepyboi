@@ -6,9 +6,8 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"os/exec"
-	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -60,55 +59,27 @@ func parseTime(date, timeStr, location string) (time.Time, error) {
 	return t, nil
 }
 
-func execAt(script_name string, time time.Time) {
+func execNow(args []string) (response string, error error) {
 
-	script_path, script_err := filepath.Abs(script_name)
+	output, err := exec.Command(args[0], args[1:]...).Output()
 
-	if script_err != nil {
-		log.Fatalf("Error loading script: %v", script_err)
+	if err != nil {
+		log.Fatalf("Error running %s: %v\r\n", strings.Join(args, " "), err)
+		return "", err
+	} else if output != nil {
+		log.Printf("Running %s success\r\n", strings.Join(args, " "))
+		return string(output), nil
 	}
 
-	formatted_time := time.Format("15:04")
-	command := fmt.Sprintf("echo '%s' | at %s", script_path, formatted_time)
-
-	exec_cmd := exec.Command("bash", "-c", command)
-	error := exec_cmd.Run()
-
-	if error != nil {
-		log.Fatalf("Error running %s: %v\r\n", script_name, error)
-	} else {
-		log.Printf("Running %s success\r\n", script_name)
-	}
-}
-
-func execNow(script_name string) {
-	script_path, script_err := filepath.Abs(script_name)
-
-	if script_err != nil {
-		log.Fatalf("Error loading script: %v\r\n", script_err)
-	}
-
-	command := exec.Command("bash", string(script_path))
-	error := command.Run()
-
-	if error != nil {
-		log.Fatalf("Error running %s: %v\r\n", script_name, error)
-	} else {
-		log.Printf("Running %s success\r\n", script_name)
-	}
+	return "", nil
 }
 
 func main() {
-
-	_, error := os.Stat("/var/lock/sleepyboi.lock")
-
-	// Check if .lock file exists in /var/lock
-	if error == nil {
-		log.Print("Sleepyboi has already been run -- skipping")
-		return
-	}
-
 	iana_response, iana_err := MakeRequest("http://ip-api.com/json/")
+	get_command := []string{"gsettings", "get"}
+	set_command := []string{"gsettings", "set"}
+	curr_color_scheme_cmd := []string{"org.gnome.desktop.interface", "color-scheme"}
+	curr_gtk_theme_cmd := []string{"org.gnome.desktop.interface", "gtk-theme"}
 
 	curr_time := time.Now()
 
@@ -143,24 +114,55 @@ func main() {
 
 	sunset_time, sunset_err := parseTime(date, sunset, timezone)
 
-	_ = sunset_time
-
 	if sunset_err != nil {
 		log.Fatalf("Error parsing sunset time string: %v", sunset_err)
 		return
 	}
 
-	if curr_time.Before(sunrise_time) {
-		execNow("sunset.sh")
-		execAt("sunrise.sh", sunrise_time)
-	} else if curr_time.After(sunrise_time) && curr_time.Before(sunset_time) {
-		execNow("sunrise.sh")
-		execAt("sunset.sh", sunset_time)
+	log.Println(fmt.Sprintf("Current: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time.String(), sunset_time.String()))
+
+	curr_color_scheme, color_scheme_err := execNow(append(get_command, curr_color_scheme_cmd...))
+
+	if color_scheme_err != nil {
+		log.Fatalf("Error getting current color scheme: %v", color_scheme_err)
+		return
 	}
 
-	println(fmt.Sprintf("Current: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time.String(), sunset_time.String()))
+	curr_gtk_theme, gtk_scheme_err := execNow(append(get_command, curr_gtk_theme_cmd...))
 
-	msg := []byte("Hello, world!")
+	if gtk_scheme_err != nil {
+		log.Fatalf("Error getting current color scheme: %v", gtk_scheme_err)
+	}
 
-	os.WriteFile("/var/lock/sleepyboi.lock", msg, 0400)
+	if curr_time.Before(sunrise_time) {
+		if curr_color_scheme != "prefer-dark" {
+			_, err := execNow(append(set_command, append(curr_color_scheme_cmd, "\"prefer-dark\"")...))
+			if err != nil {
+				log.Fatalf("Error setting color scheme: %v", err)
+				return
+			}
+		}
+		if curr_gtk_theme != "Pop-dark" {
+			_, err := execNow(append(set_command, append(curr_gtk_theme_cmd, "\"Pop-dark\"")...))
+			if err != nil {
+				log.Fatalf("Error setting GTK color theme: %v", err)
+				return
+			}
+		}
+	} else if curr_time.After(sunrise_time) && curr_time.Before(sunset_time) {
+		if curr_color_scheme != "default" {
+			_, err := execNow(append(set_command, append(curr_color_scheme_cmd, "\"default\"")...))
+			if err != nil {
+				log.Fatalf("Error setting color scheme: %v", err)
+				return
+			}
+		}
+		if curr_gtk_theme != "default" {
+			_, err := execNow(append(set_command, append(curr_gtk_theme_cmd, "\"Pop\"")...))
+			if err != nil {
+				log.Fatalf("Error setting GTK color theme: %v", err)
+				return
+			}
+		}
+	}
 }
