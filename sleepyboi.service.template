@@ -1,5 +1,5 @@
 [Unit]
-Description=Night/Day mode change service
+Description=Night/Day theme switch service
 Wants=network-online.target
 After=network.target network-online.target
 
@@ -10,9 +10,14 @@ RestartSec=5s
 StartLimitInterval=120s
 StartLimitBurst=12
 
+[Timer]
+OnCalendar=*-*-* *:*:00
+Persistent=true
+
+
 # Add path to Sleepyboi executable here
 
 ExecStart=
  
 [Install]
-WantedBy=multi-user.target
+WantedBy=timers.target

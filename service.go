@@ -43,7 +43,7 @@ func MakeRequest(url string) (map[string]any, error) {
 
 func parseTime(date, timeStr, location string) (time.Time, error) {
 
-	layout := "2006-01-02 3:04:05 PM"
+	layout := "2006-01-02 15:04:05"
 	dateTimeStr := fmt.Sprintf("%s %s", date, timeStr)
 
 	loc, err := time.LoadLocation(location)
@@ -67,7 +67,7 @@ func execNow(args []string) (response string, error error) {
 		log.Fatalf("Error running %s: %v\r\n", strings.Join(args, " "), err)
 		return "", err
 	} else if output != nil {
-		log.Printf("Running %s success\r\n", strings.Join(args, " "))
+		// log.Printf("Running %s success\r\n", strings.Join(args, " "))
 		return string(output), nil
 	}
 
@@ -75,12 +75,12 @@ func execNow(args []string) (response string, error error) {
 }
 
 func main() {
-	iana_response, iana_err := MakeRequest("http://ip-api.com/json/")
 	get_command := []string{"gsettings", "get"}
 	set_command := []string{"gsettings", "set"}
 	curr_color_scheme_cmd := []string{"org.gnome.desktop.interface", "color-scheme"}
 	curr_gtk_theme_cmd := []string{"org.gnome.desktop.interface", "gtk-theme"}
 
+	iana_response, iana_err := MakeRequest("http://ip-api.com/json/")
 	curr_time := time.Now()
 
 	if iana_err != nil {
@@ -90,7 +90,7 @@ func main() {
 
 	latitude := iana_response["lat"].(float64)
 	longitude := iana_response["lon"].(float64)
-	url := fmt.Sprintf("https://api.sunrisesunset.io/json?lat=%f&lng=%f", latitude, longitude)
+	url := fmt.Sprintf("https://api.sunrisesunset.io/json?lat=%f&lng=%f&time_format=24", latitude, longitude)
 
 	sunrise_sunset_response, sunrise_sunset_err := MakeRequest(url)
 
@@ -128,11 +128,17 @@ func main() {
 		return
 	}
 
+	curr_color_scheme = strings.TrimSpace(curr_color_scheme)
+	curr_color_scheme = curr_color_scheme[1 : len(curr_color_scheme)-1]
+
 	curr_gtk_theme, gtk_scheme_err := execNow(append(get_command, curr_gtk_theme_cmd...))
 
 	if gtk_scheme_err != nil {
 		log.Fatalf("Error getting current color scheme: %v", gtk_scheme_err)
 	}
+
+	curr_gtk_theme = strings.TrimSpace(curr_gtk_theme)
+	curr_gtk_theme = curr_gtk_theme[1 : len(curr_gtk_theme)-1]
 
 	if curr_time.Before(sunrise_time) {
 		if curr_color_scheme != "prefer-dark" {
@@ -157,12 +163,13 @@ func main() {
 				return
 			}
 		}
-		if curr_gtk_theme != "default" {
+		if curr_gtk_theme != "Pop" {
 			_, err := execNow(append(set_command, append(curr_gtk_theme_cmd, "\"Pop\"")...))
 			if err != nil {
 				log.Fatalf("Error setting GTK color theme: %v", err)
 				return
 			}
 		}
+
 	}
 }
