@@ -67,7 +67,7 @@ func execNow(args []string) (response string, error error) {
 		log.Fatalf("Error running %s: %v\r\n", strings.Join(args, " "), err)
 		return "", err
 	} else if output != nil {
-		// log.Printf("Running %s success\r\n", strings.Join(args, " "))
+		log.Printf("Running %s success\r\n", strings.Join(args, " "))
 		return string(output), nil
 	}
 
@@ -119,7 +119,7 @@ func main() {
 		return
 	}
 
-	log.Println(fmt.Sprintf("Current: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time.String(), sunset_time.String()))
+	log.Println(fmt.Sprintf("\r\nCurrent: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time.String(), sunset_time.String()))
 
 	curr_color_scheme, color_scheme_err := execNow(append(get_command, curr_color_scheme_cmd...))
 
@@ -140,7 +140,7 @@ func main() {
 	curr_gtk_theme = strings.TrimSpace(curr_gtk_theme)
 	curr_gtk_theme = curr_gtk_theme[1 : len(curr_gtk_theme)-1]
 
-	if curr_time.Before(sunrise_time) {
+	if curr_time.Day() != sunrise_time.Day() {
 		if curr_color_scheme != "prefer-dark" {
 			_, err := execNow(append(set_command, append(curr_color_scheme_cmd, "\"prefer-dark\"")...))
 			if err != nil {

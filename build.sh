@@ -2,16 +2,18 @@
 
 GO="/usr/local/go/bin/go"
 SERVICE_FILE="sleepyboi.service"
+TIMER_FILE="sleepyboi.timer"
 SERVICE_TEMPLATE="sleepyboi.service.template"
-TARGET_PATH="/etc/systemd/system/$SERVICE_FILE"
+TARGET_PATH="$HOME/.config/systemd/user"
 
 function symlink_service {
-  echo "Creating symlink to /etc/systemd/system for $SERVICE_FILE..."
-  sudo ln -sf "$(pwd)/$SERVICE_FILE" "$TARGET_PATH"
+  echo "Creating symlink to $TARGET_PATH"
+  ln -sf "$(pwd)/$SERVICE_FILE" "$TARGET_PATH/$SERVICE_FILE"
+  ln -sf "$(pwd)/$TIMER_FILE" "$TARGET_PATH/$TIMER_FILE"
 }
 
 function reload_service {
-  sudo systemctl daemon-reload
+  systemctl --user daemon-reload
 
   if [ $? != 0 ]; then
       echo "Reloading failed"
@@ -21,10 +23,10 @@ function reload_service {
   fi
 }
 
-if [ "$EUID" -ne 0 ]; then
-  echo "This script must be run with elevated permissions (as root)."
-  exit 1
-fi
+# if [ "$EUID" -ne 0 ]; then
+#   echo "This script must be run with elevated permissions (as root)."
+#   exit 1
+# fi
 
 if [ ! -f "$SERVICE_FILE" ]; then
   echo "Service file $SERVICE_FILE not found in the current directory."

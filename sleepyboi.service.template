@@ -10,11 +10,6 @@ RestartSec=5s
 StartLimitInterval=120s
 StartLimitBurst=12
 
-[Timer]
-OnCalendar=*-*-* *:*:00
-Persistent=true
-
-
 # Add path to Sleepyboi executable here
 
 ExecStart=
