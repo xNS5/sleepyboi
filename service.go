@@ -81,7 +81,7 @@ func main() {
 	curr_gtk_theme_cmd := []string{"org.gnome.desktop.interface", "gtk-theme"}
 
 	iana_response, iana_err := MakeRequest("http://ip-api.com/json/")
-	curr_time := time.Now()
+	curr_time := time.Now().Local()
 
 	if iana_err != nil {
 		log.Fatalf("Error getting remote iana name: %v", iana_err)
@@ -90,7 +90,7 @@ func main() {
 
 	latitude := iana_response["lat"].(float64)
 	longitude := iana_response["lon"].(float64)
-	url := fmt.Sprintf("https://api.sunrisesunset.io/json?lat=%f&lng=%f&time_format=24", latitude, longitude)
+	url := fmt.Sprintf("https://api.sunrisesunset.io/json?lat=%f&lng=%f&time_format=24&date=%s", latitude, longitude, curr_time.Format("2006-01-02"))
 
 	sunrise_sunset_response, sunrise_sunset_err := MakeRequest(url)
 
@@ -140,7 +140,7 @@ func main() {
 	curr_gtk_theme = strings.TrimSpace(curr_gtk_theme)
 	curr_gtk_theme = curr_gtk_theme[1 : len(curr_gtk_theme)-1]
 
-	if curr_time.Day() != sunrise_time.Day() {
+	if curr_time.After(sunset_time) {
 		if curr_color_scheme != "prefer-dark" {
 			_, err := execNow(append(set_command, append(curr_color_scheme_cmd, "\"prefer-dark\"")...))
 			if err != nil {

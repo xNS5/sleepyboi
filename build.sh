@@ -9,7 +9,9 @@ TARGET_PATH="$HOME/.config/systemd/user"
 function symlink_service {
   echo "Creating symlink to $TARGET_PATH"
   ln -sf "$(pwd)/$SERVICE_FILE" "$TARGET_PATH/$SERVICE_FILE"
-  ln -sf "$(pwd)/$TIMER_FILE" "$TARGET_PATH/$TIMER_FILE"
+  if [ ! -e "$TARGET_PATH/$SERVICE_FILE" ]; then
+    ln -sf "$(pwd)/$TIMER_FILE" "$TARGET_PATH/$TIMER_FILE"
+  fi
 }
 
 function reload_service {
