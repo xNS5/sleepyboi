@@ -16,7 +16,5 @@ Honestly? Fun. This script can easily be written in Python, Javascript, Java, Ru
 4. ???
 5. Profit
 
-## Note
-* The Sunrise/Sunset API is a little funky. After the current day's `sunset_time` has passed, the API immediately returns the next day's sunset and sunrise time. I get why, but this behavior results in needing to compare if the data from the API is the current day or the next day. If it's the next day, odds are the sunset has passed. This is a working theory, and is subject to change on a whim.
 
 This service is powered by [SunriseSunset.io](https://sunrisesunset.io/api/)
