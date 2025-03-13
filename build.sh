@@ -23,6 +23,15 @@ function reload_service {
   else
       echo "Reload successful"
   fi
+
+  systemctl --user enable sleepyboi.timer
+ 
+  if [ $? != 0 ]; then
+      echo "Enabling sleepyboi failed"
+      exit 1
+  else
+      echo "Reload successful"
+  fi
 }
 
 # if [ "$EUID" -ne 0 ]; then
@@ -51,4 +60,5 @@ echo "Sleepyboi built successfully."
 symlink_service
 
 echo "Reloading systemd daemon..."
+
 reload_service
