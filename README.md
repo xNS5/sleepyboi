@@ -12,9 +12,10 @@ Honestly? Fun. This script can easily be written in Python, Javascript, Java, Ru
 
 1. Get the general geographic location
 2. Use that geographic information to get sunrise/sunset times
-3. Run the respective sunrise/sunset script based on whether the current time is before or after sunset/sunrise. 
-4. ???
-5. Profit
+3. If the current time is after sunrise, execute sunrise theme command
+4. If the current time is after susnet, execute sunset theme command  
+5. ???
+6. Profit
 
 
 This service is powered by [SunriseSunset.io](https://sunrisesunset.io/api/)
