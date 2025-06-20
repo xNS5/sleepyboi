@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,38 +10,51 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/cenkalti/backoff/v5"
 )
 
 func MakeRequest(url string) (map[string]any, error) {
 	httpClient := http.Client{}
+	
 
-	req, err := http.NewRequest("GET", url, nil)
+	operation := func()(map[string]any, error) {
+		req, err := http.NewRequest("GET", url, nil)
 
+		
+		if err != nil {
+			return nil, err
+		}
+			
+		resp, err := httpClient.Do(req)
+			
+		if err != nil {
+			log.Printf("Unable to reach %s, retrying...\r\n", url)
+			return nil, err
+		}
+	
+		defer resp.Body.Close()
+	
+		body, err := io.ReadAll(resp.Body)
+	
+		if err != nil {
+			return nil, err
+		}
+	
+		var responseJson map[string]any
+	
+		json.Unmarshal([]byte(string(body)), &responseJson)
+	
+		return responseJson, nil
+	}
+
+	result, err := backoff.Retry(context.Background(), operation, backoff.WithBackOff(backoff.NewExponentialBackOff()), backoff.WithMaxElapsedTime(20 * time.Minute))
 	if err != nil {
 		return nil, err
 	}
-
-	resp, err := httpClient.Do(req)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-
-	if err != nil {
-		return nil, err
-	}
-
-	var responseJson map[string]any
-
-	json.Unmarshal([]byte(string(body)), &responseJson)
-
-	return responseJson, nil
+	return result, nil
 }
-
+	
 func parseTime(date, timeStr, location string) (time.Time, error) {
 
 	layout := "2006-01-02 15:04:05"
