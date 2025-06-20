@@ -48,7 +48,7 @@ func MakeRequest(url string) (map[string]any, error) {
 		return responseJson, nil
 	}
 
-	result, err := backoff.Retry(context.Background(), operation, backoff.WithBackOff(backoff.NewExponentialBackOff()), backoff.WithMaxElapsedTime(20 * time.Minute))
+	result, err := backoff.Retry(context.Background(), operation, backoff.WithBackOff(backoff.NewExponentialBackOff()), backoff.WithMaxElapsedTime(10 * time.Minute))
 	if err != nil {
 		return nil, err
 	}
@@ -95,12 +95,13 @@ func main() {
 	curr_gtk_theme_cmd := []string{"org.gnome.desktop.interface", "gtk-theme"}
 
 	iana_response, iana_err := MakeRequest("http://ip-api.com/json/")
-	curr_time := time.Now().Local()
-
+	
 	if iana_err != nil {
 		log.Fatalf("Error getting remote iana name: %v", iana_err)
 		return
 	}
+		
+	curr_time := time.Now().Local()
 
 	latitude := iana_response["lat"].(float64)
 	longitude := iana_response["lon"].(float64)
