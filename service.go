@@ -23,6 +23,13 @@ var set_command = []string{"gsettings", "set"}
 var color_scheme_cmd = []string{"org.gnome.desktop.interface", "color-scheme"}
 var gtk_theme_cmd = []string{"org.gnome.desktop.interface", "gtk-theme"}
 
+const (
+	PROD = iota
+	DEBUG
+)
+
+const MODE = DEBUG
+
 
 type State struct {
 	LastRun time.Time
@@ -96,7 +103,11 @@ func ExecNow(args []string) (response string, error error) {
 		Logger.Error().Err(err).Msgf("Error running %s: %v", strings.Join(args, " "), err)
 		return "", err
 	} else if output != nil {
-		// log.Printf("Running `%s` success", strings.Join(args, " "))
+
+		if MODE == DEBUG {
+			Logger.Debug().Msgf("Running `%s` success", strings.Join(args, " "))
+		}
+
 		return string(output), nil
 	}
 
@@ -162,6 +173,10 @@ func GetLocalState() (*State, error) {
 
 	if info.Size() <= 1 {
 
+		if MODE == DEBUG {
+			Logger.Debug().Msgf("State file has no contents. Fetching remote state info...")
+		}
+
 		state, err := GetState(time.Now().Local())
 
 		if err != nil {
@@ -171,6 +186,13 @@ func GetLocalState() (*State, error) {
 		if err := WriteState(state); err != nil {
 			return nil, err
 		}
+
+		return state, nil
+	}
+
+
+	if MODE == DEBUG {
+		Logger.Debug().Msgf("Fetching local state info...")
 	}
 	
 	file, _ := os.ReadFile(stateFile)
@@ -192,6 +214,10 @@ func GetCoords() (*float64, *float64){
 
 	latitude := iana_response["lat"].(float64)
 	longitude := iana_response["lon"].(float64)
+
+	if MODE == DEBUG {
+		Logger.Debug().Msgf("Latitude: %v Longitude: %v", latitude, longitude)
+	}
 
 	return &latitude, &longitude
 }
@@ -220,7 +246,6 @@ func GetSunriseSunset(latitude, longitude *float64) (*time.Time, *time.Time) {
 	sunrise := result["sunrise"].(string)
 	sunset := result["sunset"].(string)
 
-
 	sunrise_time, sunrise_err := ParseTime(date, sunrise, timezone)
 
 	if sunrise_err != nil {
@@ -235,7 +260,9 @@ func GetSunriseSunset(latitude, longitude *float64) (*time.Time, *time.Time) {
 		return nil, nil
 	}
 
-	Logger.Info().Msgf("Sunrise: %s Sunset: %s", sunrise_time.String(), sunset_time.String())
+	if MODE == DEBUG {
+		Logger.Debug().Msgf("Sunrise: %s Sunset: %s", sunrise_time.String(), sunset_time.String())
+	}
 
 	return sunrise_time, sunset_time
 }
@@ -256,6 +283,9 @@ func SetDarkTheme() (bool, error) {
 			Logger.Error().Err(err).Msg("Error setting color scheme")
 			return false, err
 		}
+		if MODE == DEBUG {
+			Logger.Debug().Msg("Setting color scheme to prefer-dark")
+		}
 		did_run = true
 	}
 	if *gtk_theme != "Pop-dark" {
@@ -264,7 +294,14 @@ func SetDarkTheme() (bool, error) {
 			Logger.Error().Err(err).Msg("Error setting GTK color theme")
 			return false, err
 		}
+		if MODE == DEBUG {
+			Logger.Debug().Msg("Setting gtk theme to pop-dark")
+		}
 		did_run = true
+	}
+
+	if MODE == DEBUG {
+		Logger.Debug().Msgf("Did run: %v", did_run)
 	}
 
 	return did_run, nil
@@ -274,7 +311,6 @@ func SetLightTheme() (bool, error) {
 	color_scheme, gtk_theme, err := GetSystemTheme()
 
 	did_run := false
-
 
 	if err != nil {
 		return false, err
@@ -286,6 +322,11 @@ func SetLightTheme() (bool, error) {
 			Logger.Error().Err(err).Msg("Error setting color scheme")
 			return false, err
 		}
+		
+		if MODE == DEBUG {
+			Logger.Debug().Msg("Setting gtk theme to default")
+		}
+
 		did_run = true
 	}
 	if *gtk_theme != "Pop" {
@@ -294,7 +335,16 @@ func SetLightTheme() (bool, error) {
 			Logger.Error().Err(err).Msg("Error setting GTK color theme")
 			return false, err
 		}
+
+		if MODE == DEBUG {
+			Logger.Debug().Msg("Setting gtk theme to pop")
+		}
+
 		did_run = true
+	}
+
+	if MODE == DEBUG {
+		Logger.Debug().Msgf("Did run: %v", did_run)
 	}
 
 	return did_run, nil
@@ -341,18 +391,25 @@ func main() {
 
 	curr_state, err := GetLocalState()
 
+	if MODE == DEBUG {
+		Logger.Debug().Msgf("%v", curr_state)
+	}
+
 	if err != nil {
 		Logger.Error().Err(err).Str("service", "main").Msg("Error getting current state")
 	}
 
 
 	if curr_time.After(curr_state.Sunset) {
+		if MODE == DEBUG {
+			Logger.Debug().Msg("Current time after sunset")
+		}
 		if did_run, err := SetDarkTheme(); err != nil {
 			Logger.Error().Err(err).Str("service", "main").Msg("Error setting dark theme")
 		} else if(did_run){
 
 			Logger.Info().Msg("Getting next state")
-			
+
 			state, err := GetState(curr_time.Truncate(24 * time.Hour).AddDate(0, 0, 1))
 
 			if err != nil {
@@ -364,6 +421,10 @@ func main() {
 			}
 		}
 	}  else if curr_time.After(curr_state.Sunrise) && curr_time.Before(curr_state.Sunset) {
+		if MODE == DEBUG {
+			Logger.Debug().Msg("Current time after sunrise and before sunset ")
+		}
+
 		if _, err := SetLightTheme(); err != nil {
 			Logger.Error().Err(err).Str("service", "main").Msg("Error setting dark theme")
 		}
