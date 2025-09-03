@@ -5,7 +5,8 @@ SERVICE_FILE="sleepyboi.service"
 TIMER_FILE="sleepyboi.timer"
 SERVICE_TEMPLATE="sleepyboi.service.template"
 TARGET_PATH="$HOME/.config/systemd/user"
-STATE_FILE="$HOME/.local/lib/sleepyboi/sleepyboi.json"
+STATE_PATH="$HOME/.local/lib/sleepyboi"
+STATE_FILE="$STATE_PATH/sleepyboi.json"
 
 function symlink_service {
   if [ ! -e "$TARGET_PATH/$SERVICE_FILE" ]; then
@@ -52,7 +53,7 @@ fi
 if [ ! -f "$STATE_FILE" ]; then 
   echo "State file not found"
   echo "Creating state file..."
-  mkdir -p $STATE_FILE && touch $STATE_FILE
+  mkdir "$STATE_PATH" && touch "$STATE_FILE"
   echo "State file created"
 fi
 

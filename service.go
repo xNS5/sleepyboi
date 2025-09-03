@@ -378,7 +378,7 @@ func main() {
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zeroLogger := log.Output(zerolog.ConsoleWriter{
-		Out:        os.Stdout,
+		Out:        os.Stderr,
 		TimeFormat: time.RFC3339,
 		FormatLevel: func(i any) string {
 			return strings.ToUpper(fmt.Sprintf("[%s]", i))

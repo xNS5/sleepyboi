@@ -1,6 +1,6 @@
 [Unit]
 Description=Night/Day theme switch service
-Wants=network-online.target
+Requires=network-online.target
 After=network.target network-online.target
 
 [Service]
@@ -9,6 +9,8 @@ Restart=on-failure
 RestartSec=5s
 StartLimitInterval=120s
 StartLimitBurst=12
+StandardOutput=journal
+StandardError=journal
 
 # Add path to Sleepyboi executable here
 
