@@ -4,12 +4,41 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
+
+var Logger zerolog.Logger
+
+var get_command = []string{"gsettings", "get"}
+var set_command = []string{"gsettings", "set"}
+	
+var color_scheme_cmd = []string{"org.gnome.desktop.interface", "color-scheme"}
+var gtk_theme_cmd = []string{"org.gnome.desktop.interface", "gtk-theme"}
+
+
+type State struct {
+	LastRun time.Time
+	Latitude float64
+	Longitude float64
+	Sunrise time.Time
+	Sunset time.Time
+}
+
+type OutState struct {
+	LastRun string
+	Latitude float64
+	Longitude float64
+	Sunrise string
+	Sunset string
+}
 
 func MakeRequest(url string) (map[string]any, error) {
 	httpClient := http.Client{}
@@ -41,62 +70,148 @@ func MakeRequest(url string) (map[string]any, error) {
 	return responseJson, nil
 }
 
-func parseTime(date, timeStr, location string) (time.Time, error) {
+func ParseTime(date, timeStr, location string) (*time.Time, error) {
 
 	layout := "2006-01-02 15:04:05"
 	dateTimeStr := fmt.Sprintf("%s %s", date, timeStr)
 
 	loc, err := time.LoadLocation(location)
 	if err != nil {
-		return time.Time{}, err
+		return nil, err
 	}
 
 	t, err := time.ParseInLocation(layout, dateTimeStr, loc)
 	if err != nil {
-		return time.Time{}, err
+		return nil, err
 	}
 
-	return t, nil
+	return &t, nil
 }
 
-func execNow(args []string) (response string, error error) {
+func ExecNow(args []string) (response string, error error) {
 
 	output, err := exec.Command(args[0], args[1:]...).Output()
 
 	if err != nil {
-		log.Fatalf("Error running %s: %v\r\n", strings.Join(args, " "), err)
+		Logger.Error().Err(err).Msgf("Error running %s: %v", strings.Join(args, " "), err)
 		return "", err
 	} else if output != nil {
-		log.Printf("Running %s success\r\n", strings.Join(args, " "))
+		// log.Printf("Running `%s` success", strings.Join(args, " "))
 		return string(output), nil
 	}
 
 	return "", nil
 }
 
-func main() {
-	get_command := []string{"gsettings", "get"}
-	set_command := []string{"gsettings", "set"}
-	curr_color_scheme_cmd := []string{"org.gnome.desktop.interface", "color-scheme"}
-	curr_gtk_theme_cmd := []string{"org.gnome.desktop.interface", "gtk-theme"}
+func WriteState(state *State) error {
 
+	home, err := os.UserHomeDir()
+
+	if err != nil {
+		return err
+	}
+
+	stateDir := filepath.Join(home, ".local/lib/sleepyboi")
+	stateFile := filepath.Join(stateDir, "sleepyboi.json")
+
+	jsonBytes, err := json.MarshalIndent(&OutState{
+		LastRun: state.LastRun.Format(time.RFC3339),
+		Latitude: state.Latitude,
+		Longitude: state.Longitude,
+		Sunrise: state.Sunrise.Format(time.RFC3339),
+		Sunset: state.Sunset.Format(time.RFC3339),
+	}, "", " ")
+
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(stateFile, jsonBytes, 0644)
+
+	return err
+}
+
+func GetState(time_basis time.Time) (*State, error){
+	latitude, longitude := GetCoords()
+	sunrise_ts, sunset_ts := GetSunriseSunset(latitude, longitude)
+
+	return &State{
+		LastRun: time_basis,
+		Latitude: *latitude,
+		Longitude: *longitude,
+		Sunrise: *sunrise_ts,
+		Sunset: *sunset_ts,
+	}, nil
+}
+
+func GetLocalState() (*State, error) {
+	home, err := os.UserHomeDir()
+
+	if err != nil {
+		return nil, err
+	}
+
+	stateDir := filepath.Join(home, ".local/lib/sleepyboi")
+	stateFile := filepath.Join(stateDir, "sleepyboi.json")
+
+	info, err :=  os.Stat(stateFile); 
+
+	if err != nil {
+		return nil, err
+	}
+
+	if info.Size() <= 1 {
+
+		state, err := GetState(time.Now().Local())
+
+		if err != nil {
+			return nil, err
+		}
+
+		if err := WriteState(state); err != nil {
+			return nil, err
+		}
+	}
+	
+	file, _ := os.ReadFile(stateFile)
+
+	var stateMap State
+
+	err = json.Unmarshal(file, &stateMap)
+
+	return &stateMap, err	
+}
+
+func GetCoords() (*float64, *float64){
 	iana_response, iana_err := MakeRequest("http://ip-api.com/json/")
-	curr_time := time.Now().Local()
-
+	
 	if iana_err != nil {
-		log.Fatalf("Error getting remote iana name: %v", iana_err)
-		return
+		Logger.Error().Err(iana_err).Msg("Error getting remote iana name")
+		return nil, nil
 	}
 
 	latitude := iana_response["lat"].(float64)
 	longitude := iana_response["lon"].(float64)
-	url := fmt.Sprintf("https://api.sunrisesunset.io/json?lat=%f&lng=%f&time_format=24&date=%s", latitude, longitude, curr_time.Format("2006-01-02"))
+
+	return &latitude, &longitude
+}
+
+func GetSunriseSunset(latitude, longitude *float64) (*time.Time, *time.Time) {
+
+	curr_time := time.Now().Local()
+
+	url := fmt.Sprintf("https://api.sunrisesunset.io/json?lat=%f&lng=%f&time_format=24&date=%s", *latitude, *longitude, curr_time.Format("2006-01-02")) 
 
 	sunrise_sunset_response, sunrise_sunset_err := MakeRequest(url)
 
-	if sunrise_sunset_err != nil || sunrise_sunset_response["status"].(string) != "OK" {
-		log.Fatalf("Error getting sunset/sunrise info: %v", sunrise_sunset_err)
-		return
+	if sunrise_sunset_response["status"].(string) != "OK" {
+		Logger.Error().Msgf("Error getting sunset/sunrise info: %v", sunrise_sunset_response["body"])
+		return nil, nil
+	}
+
+	if sunrise_sunset_err != nil  {
+		Logger.Error().Err(sunrise_sunset_err).Msgf("Error getting sunset/sunrise info")
+		return nil, nil
 	}
 
 	result := sunrise_sunset_response["results"].(map[string]any)
@@ -105,71 +220,154 @@ func main() {
 	sunrise := result["sunrise"].(string)
 	sunset := result["sunset"].(string)
 
-	sunrise_time, sunrise_err := parseTime(date, sunrise, timezone)
+
+	sunrise_time, sunrise_err := ParseTime(date, sunrise, timezone)
 
 	if sunrise_err != nil {
-		log.Fatalf("Error parsing sunrise time string: %v", sunrise_err)
-		return
+		Logger.Error().Err(sunrise_err).Msg("Error parsing sunrise time string")
+		return nil, nil
 	}
 
-	sunset_time, sunset_err := parseTime(date, sunset, timezone)
+	sunset_time, sunset_err := ParseTime(date, sunset, timezone)
 
 	if sunset_err != nil {
-		log.Fatalf("Error parsing sunset time string: %v", sunset_err)
-		return
+		Logger.Error().Err(sunset_err).Msg("Error parsing sunset time string")
+		return nil, nil
 	}
 
-	log.Println(fmt.Sprintf("\r\nCurrent: %s\nSunrise: %s\nSunset: %s", curr_time.String(), sunrise_time.String(), sunset_time.String()))
+	Logger.Info().Msgf("Sunrise: %s Sunset: %s", sunrise_time.String(), sunset_time.String())
 
-	curr_color_scheme, color_scheme_err := execNow(append(get_command, curr_color_scheme_cmd...))
+	return sunrise_time, sunset_time
+}
 
-	if color_scheme_err != nil {
-		log.Fatalf("Error getting current color scheme: %v", color_scheme_err)
-		return
+func SetDarkTheme() (bool, error) {
+
+	color_scheme, gtk_theme, err := GetSystemTheme()
+
+	did_run := false
+
+	if err != nil {
+		return false, err
 	}
 
-	curr_color_scheme = strings.TrimSpace(curr_color_scheme)
-	curr_color_scheme = curr_color_scheme[1 : len(curr_color_scheme)-1]
-
-	curr_gtk_theme, gtk_scheme_err := execNow(append(get_command, curr_gtk_theme_cmd...))
-
-	if gtk_scheme_err != nil {
-		log.Fatalf("Error getting current color scheme: %v", gtk_scheme_err)
+	if *color_scheme != "prefer-dark" {
+		_, err := ExecNow(append(set_command, append(color_scheme_cmd, "\"prefer-dark\"")...))
+		if err != nil {
+			Logger.Error().Err(err).Msg("Error setting color scheme")
+			return false, err
+		}
+		did_run = true
+	}
+	if *gtk_theme != "Pop-dark" {
+		_, err := ExecNow(append(set_command, append(gtk_theme_cmd, "\"Pop-dark\"")...))
+		if err != nil {
+			Logger.Error().Err(err).Msg("Error setting GTK color theme")
+			return false, err
+		}
+		did_run = true
 	}
 
-	curr_gtk_theme = strings.TrimSpace(curr_gtk_theme)
-	curr_gtk_theme = curr_gtk_theme[1 : len(curr_gtk_theme)-1]
+	return did_run, nil
+}
 
-	if curr_time.After(sunset_time) {
-		if curr_color_scheme != "prefer-dark" {
-			_, err := execNow(append(set_command, append(curr_color_scheme_cmd, "\"prefer-dark\"")...))
-			if err != nil {
-				log.Fatalf("Error setting color scheme: %v", err)
-				return
-			}
-		}
-		if curr_gtk_theme != "Pop-dark" {
-			_, err := execNow(append(set_command, append(curr_gtk_theme_cmd, "\"Pop-dark\"")...))
-			if err != nil {
-				log.Fatalf("Error setting GTK color theme: %v", err)
-				return
-			}
-		}
-	} else if curr_time.After(sunrise_time) && curr_time.Before(sunset_time) {
-		if curr_color_scheme != "default" {
-			_, err := execNow(append(set_command, append(curr_color_scheme_cmd, "\"default\"")...))
-			if err != nil {
-				log.Fatalf("Error setting color scheme: %v", err)
-				return
-			}
-		}
-		if curr_gtk_theme != "Pop" {
-			_, err := execNow(append(set_command, append(curr_gtk_theme_cmd, "\"Pop\"")...))
-			if err != nil {
-				log.Fatalf("Error setting GTK color theme: %v", err)
-				return
-			}
-		}
+func SetLightTheme() (bool, error) {
+	color_scheme, gtk_theme, err := GetSystemTheme()
 
+	did_run := false
+
+
+	if err != nil {
+		return false, err
 	}
+	
+	if *color_scheme != "default" {
+		_, err := ExecNow(append(set_command, append(color_scheme_cmd, "\"default\"")...))
+		if err != nil {
+			Logger.Error().Err(err).Msg("Error setting color scheme")
+			return false, err
+		}
+		did_run = true
+	}
+	if *gtk_theme != "Pop" {
+		_, err := ExecNow(append(set_command, append(gtk_theme_cmd, "\"Pop\"")...))
+		if err != nil {
+			Logger.Error().Err(err).Msg("Error setting GTK color theme")
+			return false, err
+		}
+		did_run = true
+	}
+
+	return did_run, nil
+}
+
+func GetSystemTheme() (*string, *string, error) {
+	color_scheme, err := ExecNow(append(get_command, color_scheme_cmd...))
+
+	if err != nil {
+		Logger.Error().Err(err).Msg("Error getting current color scheme")
+		return nil, nil, err
+	}
+
+	color_scheme = strings.TrimSpace(color_scheme)
+	color_scheme = color_scheme[1 : len(color_scheme)-1]
+
+	gtk_theme, err := ExecNow(append(get_command, gtk_theme_cmd...))
+
+	if err != nil {
+		Logger.Err(err).Err(err).Msg("Error getting current color scheme")
+		return nil, nil, err
+	}
+
+	gtk_theme = strings.TrimSpace(gtk_theme)
+	gtk_theme = gtk_theme[1 : len(gtk_theme)-1]
+
+	return &color_scheme, &gtk_theme, nil
+}
+
+func main() {
+
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	zeroLogger := log.Output(zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		TimeFormat: time.RFC3339,
+		FormatLevel: func(i any) string {
+			return strings.ToUpper(fmt.Sprintf("[%s]", i))
+		},
+	}).Level(zerolog.TraceLevel).With().Timestamp().Logger()
+
+	Logger = zeroLogger
+
+	curr_time := time.Now().Local()
+
+	curr_state, err := GetLocalState()
+
+	if err != nil {
+		Logger.Error().Err(err).Str("service", "main").Msg("Error getting current state")
+	}
+
+
+	if curr_time.After(curr_state.Sunset) {
+		if did_run, err := SetDarkTheme(); err != nil {
+			Logger.Error().Err(err).Str("service", "main").Msg("Error setting dark theme")
+		} else if(did_run){
+
+			Logger.Info().Msg("Getting next state")
+			
+			state, err := GetState(curr_time.Truncate(24 * time.Hour).AddDate(0, 0, 1))
+
+			if err != nil {
+				Logger.Error().Err(err).Str("service", "main").Msg("Error getting remote state")
+			}
+	
+			if err := WriteState(state); err != nil {
+				Logger.Error().Err(err).Msg("Error writing state")
+			}
+		}
+	}  else if curr_time.After(curr_state.Sunrise) && curr_time.Before(curr_state.Sunset) {
+		if _, err := SetLightTheme(); err != nil {
+			Logger.Error().Err(err).Str("service", "main").Msg("Error setting dark theme")
+		}
+	}
+
+	
 }
