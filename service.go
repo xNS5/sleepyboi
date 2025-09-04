@@ -155,6 +155,21 @@ func GetState(time_basis time.Time) (*State, error){
 	}, nil
 }
 
+func SetNewState() (*State, error) {
+	state, err := GetState(time.Now().Local())
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := WriteState(state); err != nil {
+		return nil, err
+	}
+
+	return state, err
+
+}
+
 func GetLocalState() (*State, error) {
 	home, err := os.UserHomeDir()
 
@@ -171,24 +186,21 @@ func GetLocalState() (*State, error) {
 		return nil, err
 	}
 
-	if info.Size() <= 1 {
+	isEmpty := info.Size() <= 1
+
+
+	if isEmpty {
 
 		if MODE == DEBUG {
 			Logger.Debug().Msgf("State file has no contents. Fetching remote state info...")
 		}
 
-		state, err := GetState(time.Now().Local())
-
-		if err != nil {
-			return nil, err
-		}
-
-		if err := WriteState(state); err != nil {
-			return nil, err
-		}
-
-		return state, nil
+		state, err := SetNewState()
+		
+		return state, err
 	}
+
+
 
 
 	if MODE == DEBUG {
@@ -200,6 +212,12 @@ func GetLocalState() (*State, error) {
 	var stateMap State
 
 	err = json.Unmarshal(file, &stateMap)
+
+	// if time.Now().Local().After(stateMap.LastRun){
+
+	// 	state, err := SetNewState()
+	// 	return state, err
+	// }
 
 	return &stateMap, err	
 }
@@ -391,23 +409,19 @@ func main() {
 
 	curr_state, err := GetLocalState()
 
-	if MODE == DEBUG {
-		Logger.Debug().Msgf("%v", curr_state)
-	}
-
 	if err != nil {
 		Logger.Error().Err(err).Str("service", "main").Msg("Error getting current state")
 	}
-
 
 	if curr_time.After(curr_state.Sunset) {
 		if MODE == DEBUG {
 			Logger.Debug().Msg("Current time after sunset")
 		}
+
 		if did_run, err := SetDarkTheme(); err != nil {
 			Logger.Error().Err(err).Str("service", "main").Msg("Error setting dark theme")
 		} else if(did_run){
-
+			
 			Logger.Info().Msg("Getting next state")
 
 			state, err := GetState(curr_time.Truncate(24 * time.Hour).AddDate(0, 0, 1))
@@ -419,6 +433,7 @@ func main() {
 			if err := WriteState(state); err != nil {
 				Logger.Error().Err(err).Msg("Error writing state")
 			}
+			
 		}
 	}  else if curr_time.After(curr_state.Sunrise) && curr_time.Before(curr_state.Sunset) {
 		if MODE == DEBUG {
