@@ -156,7 +156,12 @@ func GetState(time_basis time.Time) (*State, error){
 }
 
 func SetNewState() (*State, error) {
-	state, err := GetState(time.Now().Local())
+
+	now := time.Now()
+	year, month, day := now.Date()
+	location := now.Location()
+
+	state, err := GetState(time.Date(year, month, day, 0, 0, 0, 0, location))
 
 	if err != nil {
 		return nil, err
@@ -421,17 +426,12 @@ func main() {
 		if did_run, err := SetDarkTheme(); err != nil {
 			Logger.Error().Err(err).Str("service", "main").Msg("Error setting dark theme")
 		} else if(did_run){
-			
-			Logger.Info().Msg("Getting next state")
 
-			state, err := GetState(curr_time.Truncate(24 * time.Hour).AddDate(0, 0, 1))
+			_, err = SetNewState()
 
 			if err != nil {
-				Logger.Error().Err(err).Str("service", "main").Msg("Error getting remote state")
-			}
-	
-			if err := WriteState(state); err != nil {
-				Logger.Error().Err(err).Msg("Error writing state")
+				Logger.Error().Err(err).Str("service", "main").Msg("Error setting updated state")
+
 			}
 			
 		}
