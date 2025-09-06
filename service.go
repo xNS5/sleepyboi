@@ -184,8 +184,12 @@ func SetNewState() (*State, error) {
 
 
 func GetCoords() (*float64, *float64){
-	
+
 	if STATE_FILE.Coordinates.TimeZone == CURR_TIME_ZONE {
+		if MODE == DEBUG {
+			Logger.Debug().Msg("Timezone unchanged, using cached coordinates...")
+
+		}
 		return &STATE_FILE.Latitude, &STATE_FILE.Longitude
 	}
 
@@ -428,7 +432,7 @@ func Init() error {
 		}
 	}
 
-	if CURR_TIME.After(STATE_FILE.LastRun) {
+	if CURR_TIME.Truncate(24 * time.Hour).After(STATE_FILE.LastRun.Truncate(24 * time.Hour)) {
 		
 		if MODE == DEBUG {
 			Logger.Debug().Msgf("Local state invalid, fetching new state...")
