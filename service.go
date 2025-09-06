@@ -14,15 +14,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
-
-var Logger zerolog.Logger
-
-var get_command = []string{"gsettings", "get"}
-var set_command = []string{"gsettings", "set"}
-	
-var color_scheme_cmd = []string{"org.gnome.desktop.interface", "color-scheme"}
-var gtk_theme_cmd = []string{"org.gnome.desktop.interface", "gtk-theme"}
-
 const (
 	PROD = iota
 	DEBUG
@@ -30,21 +21,42 @@ const (
 
 const MODE = DEBUG
 
+var (
+	STATE_FILE_NAME string
+	CURR_TIME time.Time
+	CURR_TIME_ZONE string
+	STATE_FILE *State
+	NEEDS_REFRESH=0
+)
+
+var (
+	get_command = []string{"gsettings", "get"}
+	set_command = []string{"gsettings", "set"}
+	color_scheme_cmd = []string{"org.gnome.desktop.interface", "color-scheme"}
+	gtk_theme_cmd = []string{"org.gnome.desktop.interface", "gtk-theme"}
+	Logger zerolog.Logger
+)
+
+type Coordinates struct {
+	TimeZone string
+	Latitude float64
+	Longitude float64
+}
 
 type State struct {
 	LastRun time.Time
-	Latitude float64
-	Longitude float64
 	Sunrise time.Time
 	Sunset time.Time
+	Timezone string
+	Coordinates
 }
 
 type OutState struct {
 	LastRun string
-	Latitude float64
-	Longitude float64
 	Sunrise string
 	Sunset string
+	Timezone string
+	Coordinates
 }
 
 func MakeRequest(url string) (map[string]any, error) {
@@ -59,6 +71,7 @@ func MakeRequest(url string) (map[string]any, error) {
 	resp, err := httpClient.Do(req)
 
 	if err != nil {
+		NEEDS_REFRESH = 1
 		return nil, err
 	}
 
@@ -115,29 +128,22 @@ func ExecNow(args []string) (response string, error error) {
 }
 
 func WriteState(state *State) error {
-
-	home, err := os.UserHomeDir()
-
-	if err != nil {
-		return err
-	}
-
-	stateDir := filepath.Join(home, ".local/lib/sleepyboi")
-	stateFile := filepath.Join(stateDir, "sleepyboi.json")
-
 	jsonBytes, err := json.MarshalIndent(&OutState{
 		LastRun: state.LastRun.Format(time.RFC3339),
-		Latitude: state.Latitude,
-		Longitude: state.Longitude,
 		Sunrise: state.Sunrise.Format(time.RFC3339),
 		Sunset: state.Sunset.Format(time.RFC3339),
+		Coordinates: Coordinates{
+			TimeZone: CURR_TIME_ZONE,
+			Latitude: state.Latitude,
+			Longitude: state.Longitude,
+		},
 	}, "", " ")
 
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(stateFile, jsonBytes, 0644)
+	err = os.WriteFile(STATE_FILE_NAME, jsonBytes, 0644)
 
 	return err
 }
@@ -148,18 +154,20 @@ func GetState(time_basis time.Time) (*State, error){
 
 	return &State{
 		LastRun: time_basis,
-		Latitude: *latitude,
-		Longitude: *longitude,
 		Sunrise: *sunrise_ts,
 		Sunset: *sunset_ts,
+		Coordinates: Coordinates{
+			TimeZone: CURR_TIME_ZONE,
+			Latitude: *latitude,
+			Longitude: *longitude,
+		},
 	}, nil
 }
 
 func SetNewState() (*State, error) {
 
-	now := time.Now()
-	year, month, day := now.Date()
-	location := now.Location()
+	year, month, day := CURR_TIME.Date()
+	location := CURR_TIME.Location()
 
 	state, err := GetState(time.Date(year, month, day, 0, 0, 0, 0, location))
 
@@ -172,75 +180,15 @@ func SetNewState() (*State, error) {
 	}
 
 	return state, err
-
 }
 
-func GetLocalState() (*State, error) {
-	home, err := os.UserHomeDir()
-
-	if err != nil {
-		return nil, err
-	}
-
-	stateDir := filepath.Join(home, ".local/lib/sleepyboi")
-	stateFile := filepath.Join(stateDir, "sleepyboi.json")
-
-	info, err :=  os.Stat(stateFile); 
-
-	if err != nil {
-		return nil, err
-	}
-
-	isEmpty := info.Size() <= 1
-
-	var stateMap *State
-
-
-	if isEmpty {
-
-		if MODE == DEBUG {
-			Logger.Debug().Msgf("State file has no contents. Fetching remote state info...")
-		}
-
-		state, err := SetNewState()
-
-		if err != nil {
-			return nil, err
-		}
-
-		stateMap = state
-	} else {
-		if MODE == DEBUG {
-			Logger.Debug().Msgf("Fetching local state info...")
-		}
-		file, _ := os.ReadFile(stateFile)
-	
-		err = json.Unmarshal(file, &stateMap)
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
-
-	if time.Now().Local().After(stateMap.LastRun) {
-		
-		if MODE == DEBUG {
-			Logger.Debug().Msgf("Local state invalid, fetching new state...")
-		}
-
-		stateMap, err = SetNewState()
-
-		if err != nil {
-			return nil, err
-		}
-
-	}
-
-	return stateMap, nil	
-}
 
 func GetCoords() (*float64, *float64){
+	
+	if STATE_FILE.Coordinates.TimeZone == CURR_TIME_ZONE {
+		return &STATE_FILE.Latitude, &STATE_FILE.Longitude
+	}
+
 	iana_response, iana_err := MakeRequest("http://ip-api.com/json/")
 	
 	if iana_err != nil {
@@ -402,8 +350,17 @@ func GetSystemTheme() (*string, *string, error) {
 	return &color_scheme, &gtk_theme, nil
 }
 
-func main() {
 
+func Init() error {
+
+	// Time
+
+	CURR_TIME = time.Now().Local()
+
+	CURR_TIME_ZONE, _ = CURR_TIME.Zone()
+
+
+	// Logging
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zeroLogger := log.Output(zerolog.ConsoleWriter{
 		Out:        os.Stderr,
@@ -415,15 +372,88 @@ func main() {
 
 	Logger = zeroLogger
 
-	curr_time := time.Now().Local()
-
-	curr_state, err := GetLocalState()
+	// State
+	home, err := os.UserHomeDir()
 
 	if err != nil {
-		Logger.Error().Err(err).Str("service", "main").Msg("Error getting current state")
+		return err
 	}
 
-	if curr_time.After(curr_state.Sunset) {
+	stateDir := filepath.Join(home, ".local/lib/sleepyboi")
+	stateFile := filepath.Join(stateDir, "sleepyboi.json")
+
+	STATE_FILE_NAME = stateFile
+
+	if MODE == DEBUG {
+		Logger.Debug().Msgf("Fetching local state info...")
+	}
+
+	info, err :=  os.Stat(STATE_FILE_NAME); 
+
+	if err != nil {
+		return err
+	}
+
+	isEmpty := info.Size() <= 1
+
+	if isEmpty {
+
+		if MODE == DEBUG {
+			Logger.Debug().Msgf("State file has no contents. Fetching remote state info...")
+		}
+
+		state, err := SetNewState()
+
+		if err != nil {
+			return err
+		}
+
+		if MODE == DEBUG {
+			Logger.Debug().Msg("Fetching remote state success")
+		}
+
+		STATE_FILE = state
+	} else {
+
+		file, _ := os.ReadFile(STATE_FILE_NAME)
+
+		err = json.Unmarshal(file, &STATE_FILE)
+
+		if err != nil {
+			return err
+		}
+
+		if MODE == DEBUG {
+			Logger.Debug().Msg("Fetching local state success")
+		}
+	}
+
+	if CURR_TIME.After(STATE_FILE.LastRun) {
+		
+		if MODE == DEBUG {
+			Logger.Debug().Msgf("Local state invalid, fetching new state...")
+		}
+
+		stateMap, err := SetNewState()
+
+		if err != nil {
+			return err
+		}
+
+		STATE_FILE = stateMap
+	}
+
+	return nil
+}
+
+func main() {
+
+	if err := Init(); err != nil {
+		Logger.Error().Err(err).Msg("Error initializing state")
+		os.Exit(0)
+	}
+
+	if CURR_TIME.After(STATE_FILE.Sunset) {
 		if MODE == DEBUG {
 			Logger.Debug().Msg("Current time after sunset")
 		}
@@ -435,7 +465,7 @@ func main() {
 				Logger.Debug().Msgf("Did run: %v", did_run)
 			}
 		}
-	}  else if curr_time.After(curr_state.Sunrise) && curr_time.Before(curr_state.Sunset) {
+	}  else if CURR_TIME.After(STATE_FILE.Sunrise) && CURR_TIME.Before(STATE_FILE.Sunset) {
 		if MODE == DEBUG {
 			Logger.Debug().Msg("Current time after sunrise and before sunset ")
 		}
@@ -448,6 +478,5 @@ func main() {
 			}
 		}
 	}
-
 	
 }
