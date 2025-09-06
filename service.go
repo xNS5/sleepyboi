@@ -193,6 +193,8 @@ func GetLocalState() (*State, error) {
 
 	isEmpty := info.Size() <= 1
 
+	var stateMap *State
+
 
 	if isEmpty {
 
@@ -201,30 +203,41 @@ func GetLocalState() (*State, error) {
 		}
 
 		state, err := SetNewState()
-		
-		return state, err
-	}
 
+		if err != nil {
+			return nil, err
+		}
 
-
-
-	if MODE == DEBUG {
-		Logger.Debug().Msgf("Fetching local state info...")
-	}
+		stateMap = state
+	} else {
+		if MODE == DEBUG {
+			Logger.Debug().Msgf("Fetching local state info...")
+		}
+		file, _ := os.ReadFile(stateFile)
 	
-	file, _ := os.ReadFile(stateFile)
+		err = json.Unmarshal(file, &stateMap)
 
-	var stateMap State
+		if err != nil {
+			return nil, err
+		}
+	}
 
-	err = json.Unmarshal(file, &stateMap)
 
-	// if time.Now().Local().After(stateMap.LastRun){
+	if time.Now().Local().After(stateMap.LastRun) {
+		
+		if MODE == DEBUG {
+			Logger.Debug().Msgf("Local state invalid, fetching new state...")
+		}
 
-	// 	state, err := SetNewState()
-	// 	return state, err
-	// }
+		stateMap, err = SetNewState()
 
-	return &stateMap, err	
+		if err != nil {
+			return nil, err
+		}
+
+	}
+
+	return stateMap, nil	
 }
 
 func GetCoords() (*float64, *float64){
@@ -323,10 +336,6 @@ func SetDarkTheme() (bool, error) {
 		did_run = true
 	}
 
-	if MODE == DEBUG {
-		Logger.Debug().Msgf("Did run: %v", did_run)
-	}
-
 	return did_run, nil
 }
 
@@ -364,10 +373,6 @@ func SetLightTheme() (bool, error) {
 		}
 
 		did_run = true
-	}
-
-	if MODE == DEBUG {
-		Logger.Debug().Msgf("Did run: %v", did_run)
 	}
 
 	return did_run, nil
@@ -425,23 +430,22 @@ func main() {
 
 		if did_run, err := SetDarkTheme(); err != nil {
 			Logger.Error().Err(err).Str("service", "main").Msg("Error setting dark theme")
-		} else if(did_run){
-
-			_, err = SetNewState()
-
-			if err != nil {
-				Logger.Error().Err(err).Str("service", "main").Msg("Error setting updated state")
-
+		} else {
+			if MODE == DEBUG {
+				Logger.Debug().Msgf("Did run: %v", did_run)
 			}
-			
 		}
 	}  else if curr_time.After(curr_state.Sunrise) && curr_time.Before(curr_state.Sunset) {
 		if MODE == DEBUG {
 			Logger.Debug().Msg("Current time after sunrise and before sunset ")
 		}
 
-		if _, err := SetLightTheme(); err != nil {
+		if did_run, err := SetLightTheme(); err != nil {
 			Logger.Error().Err(err).Str("service", "main").Msg("Error setting dark theme")
+		} else {
+			if MODE == DEBUG {
+				Logger.Debug().Msgf("Did run: %v", did_run)
+			}
 		}
 	}
 
