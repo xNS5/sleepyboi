@@ -38,7 +38,6 @@ var (
 )
 
 type Coordinates struct {
-	TimeZone string
 	Latitude float64
 	Longitude float64
 }
@@ -132,8 +131,8 @@ func WriteState(state *State) error {
 		LastRun: state.LastRun.Format(time.RFC3339),
 		Sunrise: state.Sunrise.Format(time.RFC3339),
 		Sunset: state.Sunset.Format(time.RFC3339),
+		Timezone: CURR_TIME_ZONE,
 		Coordinates: Coordinates{
-			TimeZone: CURR_TIME_ZONE,
 			Latitude: state.Latitude,
 			Longitude: state.Longitude,
 		},
@@ -156,8 +155,8 @@ func GetState(time_basis time.Time) (*State, error){
 		LastRun: time_basis,
 		Sunrise: *sunrise_ts,
 		Sunset: *sunset_ts,
+		Timezone: CURR_TIME_ZONE,
 		Coordinates: Coordinates{
-			TimeZone: CURR_TIME_ZONE,
 			Latitude: *latitude,
 			Longitude: *longitude,
 		},
@@ -182,10 +181,9 @@ func SetNewState() (*State, error) {
 	return state, err
 }
 
-
 func GetCoords() (*float64, *float64){
 
-	if STATE_FILE.Coordinates.TimeZone == CURR_TIME_ZONE {
+	if STATE_FILE.Timezone == CURR_TIME_ZONE {
 		if MODE == DEBUG {
 			Logger.Debug().Msg("Timezone unchanged, using cached coordinates...")
 
@@ -353,7 +351,6 @@ func GetSystemTheme() (*string, *string, error) {
 
 	return &color_scheme, &gtk_theme, nil
 }
-
 
 func Init() error {
 
