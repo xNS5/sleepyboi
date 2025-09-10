@@ -11,8 +11,8 @@ STATE_FILE="$STATE_PATH/sleepyboi.json"
 function symlink_service {
   if [ ! -e "$TARGET_PATH/$SERVICE_FILE" ]; then
     echo "Creating symlink to $TARGET_PATH"
-    ln -sf "./$SERVICE_FILE" "$TARGET_PATH/$SERVICE_FILE"
-    ln -sf "./$TIMER_FILE" "$TARGET_PATH/$TIMER_FILE"
+    ln -sf "$(pwd)/$SERVICE_FILE" "$TARGET_PATH/$SERVICE_FILE"
+    ln -sf "$(pwd)/$TIMER_FILE" "$TARGET_PATH/$TIMER_FILE"
   else
     echo "File already exists. Skipping symlink..."
   fi
