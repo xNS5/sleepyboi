@@ -183,7 +183,7 @@ func SetNewState() (*State, error) {
 
 func GetCoords() (*float64, *float64){
 
-	if STATE_FILE.Timezone == CURR_TIME_ZONE {
+	if STATE_FILE != nil && STATE_FILE.Timezone == CURR_TIME_ZONE {
 		if MODE == DEBUG {
 			Logger.Debug().Msg("Timezone unchanged, using cached coordinates...")
 
