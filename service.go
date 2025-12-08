@@ -389,15 +389,9 @@ func Init() error {
 		Logger.Debug().Msgf("Fetching local state info...")
 	}
 
-	info, err :=  os.Stat(STATE_FILE_NAME); 
+	info, err :=  os.Stat(STATE_FILE_NAME)
 
-	if err != nil {
-		return err
-	}
-
-	isEmpty := info.Size() <= 1
-
-	if isEmpty {
+	if err != nil || info.Size() <= 1 {
 
 		if MODE == DEBUG {
 			Logger.Debug().Msgf("State file has no contents. Fetching remote state info...")
@@ -414,6 +408,7 @@ func Init() error {
 		}
 
 		STATE_FILE = state
+		
 	} else {
 
 		file, _ := os.ReadFile(STATE_FILE_NAME)
