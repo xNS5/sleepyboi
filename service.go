@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -352,7 +353,9 @@ func GetSystemTheme() (*string, *string, error) {
 	return &color_scheme, &gtk_theme, nil
 }
 
-func Init() error {
+func Init(force *bool) error {
+
+	shouldForce := (force != nil && *force)
 
 	// Time
 
@@ -391,12 +394,14 @@ func Init() error {
 
 	info, err :=  os.Stat(STATE_FILE_NAME)
 
-	if err != nil || info.Size() <= 1 {
+	if err != nil || info.Size() <= 1 ||  shouldForce{
 
-		if MODE == DEBUG {
+		if shouldForce == true {
+			Logger.Info().Msgf("Forcing state file regeneration")
+		} else if MODE == DEBUG {
 			Logger.Debug().Msgf("State file has no contents. Fetching remote state info...")
 		}
-
+		
 		state, err := SetNewState()
 
 		if err != nil {
@@ -444,7 +449,11 @@ func Init() error {
 
 func main() {
 
-	if err := Init(); err != nil {
+	force := flag.Bool("force", false, "force state regeneration")
+
+	flag.Parse()
+
+	if err := Init(force); err != nil {
 		Logger.Error().Err(err).Msg("Error initializing state")
 		os.Exit(0)
 	}
@@ -458,7 +467,7 @@ func main() {
 			Logger.Error().Err(err).Str("service", "main").Msg("Error setting dark theme")
 		} else {
 			if MODE == DEBUG {
-				Logger.Debug().Msgf("Did run: %v", did_run)
+				Logger.Debug().Msgf("Did execute theme change: %v", did_run)
 			}
 		}
 	}  else if CURR_TIME.After(STATE_FILE.Sunrise) && CURR_TIME.Before(STATE_FILE.Sunset) {
@@ -470,7 +479,7 @@ func main() {
 			Logger.Error().Err(err).Str("service", "main").Msg("Error setting dark theme")
 		} else {
 			if MODE == DEBUG {
-				Logger.Debug().Msgf("Did run: %v", did_run)
+				Logger.Debug().Msgf("Did execute theme change: %v", did_run)
 			}
 		}
 	}
