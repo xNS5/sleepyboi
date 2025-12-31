@@ -1,16 +1,20 @@
 #!/bin/bash
 
-GO="/usr/local/go/bin/go"
+GO="$(which go)"
 SERVICE_FILE="sleepyboi.service"
 TIMER_FILE="sleepyboi.timer"
 SERVICE_TEMPLATE="sleepyboi.service.template"
 TARGET_PATH="$HOME/.config/systemd/user"
+STATE_PATH="$HOME/.local/lib/sleepyboi"
+STATE_FILE="$STATE_PATH/sleepyboi.json"
 
 function symlink_service {
-  echo "Creating symlink to $TARGET_PATH"
-  ln -sf "$(pwd)/$SERVICE_FILE" "$TARGET_PATH/$SERVICE_FILE"
   if [ ! -e "$TARGET_PATH/$SERVICE_FILE" ]; then
+    echo "Creating symlink to $TARGET_PATH"
+    ln -sf "$(pwd)/$SERVICE_FILE" "$TARGET_PATH/$SERVICE_FILE"
     ln -sf "$(pwd)/$TIMER_FILE" "$TARGET_PATH/$TIMER_FILE"
+  else
+    echo "File already exists. Skipping symlink..."
   fi
 }
 
@@ -18,10 +22,10 @@ function reload_service {
   systemctl --user daemon-reload
 
   if [ $? != 0 ]; then
-      echo "Reloading failed"
+      echo "Reloading daemon failed"
       exit 1
   else
-      echo "Reload successful"
+      echo "Reloading daemon successful"
   fi
 
   systemctl --user enable sleepyboi.timer
@@ -30,7 +34,7 @@ function reload_service {
       echo "Enabling sleepyboi failed"
       exit 1
   else
-      echo "Reload successful"
+      echo "Enabling sleepyboi successful"
   fi
 }
 
@@ -44,6 +48,13 @@ if [ ! -f "$SERVICE_FILE" ]; then
   echo "Creating $SERVICE_FILE from template..."
   cp $SERVICE_TEMPLATE $SERVICE_FILE
   sed -i "s|ExecStart=|ExecStart=$GOBIN/sleepyboi|" $SERVICE_FILE
+fi
+
+if [ ! -f "$STATE_FILE" ]; then 
+  echo "State file not found"
+  echo "Creating state file..."
+  mkdir "$STATE_PATH" && touch "$STATE_FILE"
+  echo "State file created"
 fi
 
 echo "Building Sleepyboi..."
