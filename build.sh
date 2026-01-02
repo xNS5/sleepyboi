@@ -3,16 +3,19 @@
 GO="$(which go)"
 SERVICE_FILE="sleepyboi.service"
 TIMER_FILE="sleepyboi.timer"
+PARENT_DIR="$(dirname $(realpath "$SERVICE_FILE"))"
 SERVICE_TEMPLATE="sleepyboi.service.template"
 TARGET_PATH="$HOME/.config/systemd/user"
 STATE_PATH="$HOME/.local/lib/sleepyboi"
 STATE_FILE="$STATE_PATH/sleepyboi.json"
 
+FORCE=false
+
 function symlink_service {
-  if [ ! -e "$TARGET_PATH/$SERVICE_FILE" ]; then
+  if [[ ! -e "$TARGET_PATH/$SERVICE_FILE" || "$FORCE" == true ]]; then
     echo "Creating symlink to $TARGET_PATH"
-    ln -sf "./$SERVICE_FILE" "$TARGET_PATH/$SERVICE_FILE"
-    ln -sf "./$TIMER_FILE" "$TARGET_PATH/$TIMER_FILE"
+    ln -sf "$PARENT_DIR/$SERVICE_FILE" "$TARGET_PATH/$SERVICE_FILE"
+    ln -sf "$PARENT_DIR/$TIMER_FILE" "$TARGET_PATH/$TIMER_FILE"
   else
     echo "File already exists. Skipping symlink..."
   fi
@@ -42,6 +45,24 @@ function reload_service {
 #   echo "This script must be run with elevated permissions (as root)."
 #   exit 1
 # fi
+
+while test $# -gt 0; do
+  case "$1" in
+    --force|-f)
+      shift
+      FORCE=true
+      shift
+    ;;
+     *)
+      break
+    ;;
+  esac
+done
+
+if [ "$FORCE" == true ]; then
+    echo "Forcing regeneration..."
+fi
+
 
 if [ ! -f "$SERVICE_FILE" ]; then
   echo "Service file $SERVICE_FILE not found in the current directory."
@@ -73,3 +94,8 @@ symlink_service
 echo "Reloading systemd daemon..."
 
 reload_service
+
+echo "Starting service..."
+
+systemctl --user start "$TIMER_FILE"
+systemctl --user start "$SERVICE_FILE"
